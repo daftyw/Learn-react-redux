@@ -2,7 +2,8 @@
 
 module.exports = {
     entry: { 
-        start: "./src/start.js" 
+        start: "./src/start.js",
+        calendar: "./src/calendar.js" 
     },
 
     output: {
