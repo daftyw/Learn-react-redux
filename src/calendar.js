@@ -3,83 +3,42 @@ import React,{Component}                from 'react'
 import {createStore,applyMiddleware}    from 'redux'
 import {Provider,connect}               from 'react-redux'
 import createLogger                     from 'redux-logger'
+import moment                           from 'moment'
 
 const loggerMiddleware = createLogger()
 
-// ACTION
-// var ==> const, let  
-// actionClick function return { type: 'CLICK_HELLO' }
-const actionClick = _name => {
-    if(_name != null && _name != '') {
-        return { type: 'CLICK_HELLO', name: _name }
-    } else {
-        return { type: 'CLICK_HELLO_NONAME' }
-    } 
-}
+const now = moment()
+const initialState = { month: now.month(), year: now.year() }
 
-// REDUCER
-function welcomeMessageReducer (state = {}, action) {
+// REDUCER : PURE FUNCTION
+function calendarReducer (state = initialState, action) {
     switch(action.type) {
-        case 'CLICK_HELLO': 
-            return { welcomeMessage: 'Welcome! ' + action.name }
-        case 'CLICK_HELLO_NONAME':
-            return { welcomeMessage: 'No welcome there is no one here ... D:' }
+        case 'GO_PREV_MONTH':
+              
+            return { 
+                month: (state.month == 1) ? 12 : state.month - 1,
+                year: (state.month == 1) ? state.year - 1 : state.year,  
+            }
+
+        case 'GO_NEXT_MONTH':
+            
+            return { 
+                month: (state.month == 12) ? 1 : state.month + 1,
+                year: (state.month == 12) ? state.year + 1 : state.year,  
+            }
+
         default:
-            return { welcomeMessage: 'Welcome! ... Blah!' }
+            return state
     }
 }
-
-// class Hello
-class Hello extends Component {
-    constructor(props) {
-        super(props)
-
-        this.state = { name: '' }
-
-        this.changeName = this.changeName.bind(this)
-        this.clickWelcome = this.clickWelcome.bind(this)
-    }
-    changeName(e) {
-        this.setState( { name: e.target.value } )
-    }
-    clickWelcome(e) {
-        this.props.dispatchWelcomeMessage(this.state.name)
-    }
-    render() {
-        return (<div className="form-group">
-                <input name="name" onChange={this.changeName} className="form-inline"/> 
-                <button className="btn btn-danger" onClick={this.clickWelcome}>Hello</button>
-                <div>{ this.props.msg }</div>
-                </div>)
-    }
-}
-
-function mapStateToProps(state) {
-    return {
-        msg: state.welcomeMessage
-    }
-}
-
-function mapDispatchToProps(dispatch) {
-    return {
-        dispatchWelcomeMessage: function(name) {            
-            dispatch(actionClick(name))
-        } 
-    }
-}
-
-const ConnectedHello = connect(
-    mapStateToProps, 
-    mapDispatchToProps
-)(Hello)
 
 // Class App 
 class Calendar extends Component {
     render() {
         return (
             <div>
-                <CalendarHead />
-                <CalendarTable />
+                <ActiveCalendarHead />
+                <ActiveCalendarTable />
             </div>
             )
     }
@@ -88,15 +47,64 @@ class Calendar extends Component {
 class CalendarHead extends Component {
     render() {
         return (
-            <div>
-                <h3>December 2016</h3>
+            <div className="row">
+                <div className="col-xs-8">
+                    <h3>
+                        { moment().month(this.props.month - 1).format("MMMM") } { this.props.year }
+                    </h3>
+                </div>   
+                <div className="col-xs-4">
+                    <span className="move">
+                        <a href="#" onClick={ this.props.prevMonth } >&lt;&lt; Prev</a> 
+                        <span>&nbsp;|&nbsp;</span>
+                        <a href="#" onClick={ this.props.nextMonth } >Next &gt;&gt;</a>
+                    </span>
+                </div>         
             </div>
         )
     }
 }
 
+const calendarHeadPropsFromState = (state) => {
+    return {
+        month: state.month,
+        year: state.year
+    }
+}
+
+const calendarHeadPropsDispatch = (dispatch) => {
+    return {
+        prevMonth: () => { dispatch( { type: 'GO_PREV_MONTH' } ) } ,
+        nextMonth: () => { dispatch( { type: 'GO_NEXT_MONTH' } ) }
+    }
+}
+
+// Create ActiveCalendarHead
+const ActiveCalendarHead = connect( 
+    calendarHeadPropsFromState, calendarHeadPropsDispatch 
+) (CalendarHead)
+
 class CalendarTable extends Component {
+
     render() {
+        let firstDay = moment().year(this.props.year).month(this.props.month - 1).local()
+        let lastDay = moment().year(this.props.year).month(this.props.month - 1).local()
+        
+        firstDay.date(1) // date = 1 
+        lastDay.endOf('month') // end of month
+        
+        let skip = firstDay.day()
+        let maxDay = lastDay.date()
+        
+        let rowsData = [ { start: 1, skip: skip } ]
+
+        for(let i = 8 - skip; i < maxDay; i = i + 7) {            
+            rowsData.push({ start: i })
+        } 
+
+        rowsData[rowsData.length - 1].end = maxDay        
+        console.log(JSON.stringify(rowsData))
+
         return (
             <div>
                 <table className="table">
@@ -104,17 +112,22 @@ class CalendarTable extends Component {
                         <CalendarTableHead />
                     </thead>
                     <tbody>
-                        <CalendarTableRow skip="4" start="1"/>
-                        <CalendarTableRow start="4"/>
-                        <CalendarTableRow start="11"/>
-                        <CalendarTableRow start="18"/>
-                        <CalendarTableRow start="25"/>
+                        { 
+                            rowsData.map( 
+                                row => 
+                                    <CalendarTableRow key={row.start} 
+                                    start={row.start} 
+                                    skip={row.skip} end={row.end} /> 
+                                ) 
+                        }                       
                     </tbody>
                 </table>
             </div>
         )
     }
 }
+
+const ActiveCalendarTable = connect(calendarHeadPropsFromState)(CalendarTable)
 
 class CalendarTableHead extends Component {
     render() {
@@ -133,26 +146,34 @@ class CalendarTableHead extends Component {
 }
 
 class CalendarTableRow extends Component {
-    constructor(props) {
-        super(props)
-    }
-
     render() {
         let days = []
+        let skip = (this.props.skip != null) ? this.props.skip : 0
 
         for(let i = this.props.start, j = 0; j < 7; i++, j++) {
-            days[j] = i;
+            if(j < skip) {
+                i = 0 // stop counting for i 
+            }
+
+            if(this.props.end != null && i > this.props.end) 
+                break
+                
+            days[j] = i
+        }
+
+        if(days.length < 7) {
+            for(let i = days.length; i < 7; i++)
+                days.push(0)
         }
 
         return (
             <tr>
-                { 
-                    days.map( (value, index) => 
-                        <td key={value.toString()} className={ (index == 0 || index == 6) ? "weekend" : "" }>
+                {days.map( 
+                    (value, index) => 
+                        <td key={index.toString()} className={(index == 0 || index == 6) ? "weekend" : ""}>
                             { (value == 0) ? "" : value }
                         </td> 
-                    ) 
-                }                
+                )}                
             </tr>
         )
     }
@@ -160,14 +181,14 @@ class CalendarTableRow extends Component {
 
 // Create Store
 const store = createStore(
-    welcomeMessageReducer, 
+    calendarReducer, 
     applyMiddleware(loggerMiddleware) 
     )
 
-
-// <Provider store={store}>
-// </Provider>
+// 
 ReactDOM.render(
-    <Calendar />,
+    <Provider store={store}>
+        <Calendar />
+    </Provider>,
     document.getElementById("core")
 )
