@@ -1,11 +1,13 @@
 // 
 
 module.exports = {
-    entry: "./src/start.js",
+    entry: { 
+        start: "./src/start.js" 
+    },
 
     output: {
         path: "./bin/",
-        filename: "bundle.js"
+        filename: "[name].bundle.js"
     },
 
     module: {
