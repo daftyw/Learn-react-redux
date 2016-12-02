@@ -1,17 +1,16 @@
+import moment                           from 'moment'
 import ReactDOM                         from 'react-dom'
 import React,{Component}                from 'react'
-import {createStore,applyMiddleware}    from 'redux'
+import {createStore,applyMiddleware,combineReducers}        from 'redux'
 import {Provider,connect}               from 'react-redux'
 import createLogger                     from 'redux-logger'
-import moment                           from 'moment'
 
 const loggerMiddleware = createLogger()
-
 const now = moment()
-const initialState = { month: now.month(), year: now.year() }
+const initialState = { month: now.month()+1, year: now.year() }
 
 // REDUCER : PURE FUNCTION
-function calendarReducer (state = initialState, action) {
+function calendarState (state = initialState, action) {
     switch(action.type) {
         case 'GO_PREV_MONTH':
               
@@ -32,32 +31,96 @@ function calendarReducer (state = initialState, action) {
     }
 }
 
+// reducer 2 
+function langState (state = { lang: 'EN' }, action) {
+    switch(action.type) {
+        case 'CHANGE_LANG': 
+            return { lang: action.new_lang }
+        default: 
+            return state
+    }
+}
+
+// to 1 and only reducers
+const reducers = combineReducers( { calendarState, langState } )
+
 // Class App 
 class Calendar extends Component {
     render() {
         return (
-            <div>
+            <div>                
                 <ActiveCalendarHead />
                 <ActiveCalendarTable />
+                <ActiveLangSwitcher />
             </div>
             )
     }
 }
 
-class CalendarHead extends Component {
+class LangSwitcher extends Component {
+    constructor(props) {
+        super(props)
+
+        this.change2EN = this.change2EN.bind(this)
+        this.change2TH = this.change2TH.bind(this)
+    }
+
+    change2EN() {
+        this.props.changeLang('EN')
+    }
+
+    change2TH() {
+        this.props.changeLang('TH')
+    }
+
     render() {
+        return (
+            <div className="switch">
+                { (this.props.lang == 'EN' 
+                    && <a href="#" 
+                    onClick={this.change2TH}>ไทย</a> ) }
+                { (this.props.lang == 'TH' 
+                    && <a href="#"  
+                    onClick={this.change2EN}>En</a> ) }
+            </div>
+        )
+    }
+}
+
+const langFromState = ({langState}) => ({ lang: langState.lang })
+const langToDispatch = (dispatch) => {
+    return {
+        changeLang: (lang) => {
+            dispatch( { type: 'CHANGE_LANG', new_lang: lang } )
+        }
+    }
+}
+
+const ActiveLangSwitcher = connect(langFromState, langToDispatch)(LangSwitcher)
+
+class CalendarHead extends Component {
+    
+    render() {
+        let prev = "Prev"
+        let next = "Next"
+
+        if(this.props.lang == "TH") {
+            prev = "ก่อนหน้า"
+            next = "ถัดไป"
+        }
         return (
             <div className="row">
                 <div className="col-xs-8">
                     <h3>
-                        { moment().month(this.props.month - 1).format("MMMM") } { this.props.year }
+                        { moment().locale(this.props.lang).month(this.props.month - 1).format("MMMM") } 
+                        &nbsp;{ (this.props.lang == "TH") ? this.props.year + 543 : this.props.year }
                     </h3>
                 </div>   
                 <div className="col-xs-4">
-                    <span className="move">
-                        <a href="#" onClick={ this.props.prevMonth } >&lt;&lt; Prev</a> 
+                    <span className="switch">
+                        <a href="#" onClick={ this.props.prevMonth } >&lt;&lt; {prev}</a> 
                         <span>&nbsp;|&nbsp;</span>
-                        <a href="#" onClick={ this.props.nextMonth } >Next &gt;&gt;</a>
+                        <a href="#" onClick={ this.props.nextMonth } >{next} &gt;&gt;</a>
                     </span>
                 </div>         
             </div>
@@ -65,10 +128,11 @@ class CalendarHead extends Component {
     }
 }
 
-const calendarHeadPropsFromState = (state) => {
+const calendarHeadPropsFromState = ({calendarState, langState}) => {
     return {
-        month: state.month,
-        year: state.year
+        month: calendarState.month,
+        year: calendarState.year,
+        lang: langState.lang
     }
 }
 
@@ -108,9 +172,7 @@ class CalendarTable extends Component {
         return (
             <div>
                 <table className="table">
-                    <thead>
-                        <CalendarTableHead />
-                    </thead>
+                    <ActiveCalendarTableHead />                    
                     <tbody>
                         { 
                             rowsData.map( 
@@ -131,19 +193,22 @@ const ActiveCalendarTable = connect(calendarHeadPropsFromState)(CalendarTable)
 
 class CalendarTableHead extends Component {
     render() {
+        let now = moment().locale(this.props.lang)
+        let dayStrs = []
+        for(let i = 0; i< 7;i++) {
+            dayStrs.push( now.day(i).format('ddd') )            
+        }
         return (
-            <tr>
-                <th>Sun</th>
-                <th>Mon</th>
-                <th>Tue</th>
-                <th>Wed</th>
-                <th>Thu</th>
-                <th>Fri</th>
-                <th>Sat</th>
-            </tr>
+            <thead>
+                <tr>
+                    { dayStrs.map( dayStr => (<th key={dayStr}>{dayStr}</th>)) }
+                </tr>
+            </thead>
         )
     }
 }
+
+const ActiveCalendarTableHead = connect(calendarHeadPropsFromState)(CalendarTableHead)
 
 class CalendarTableRow extends Component {
     render() {
@@ -181,7 +246,7 @@ class CalendarTableRow extends Component {
 
 // Create Store
 const store = createStore(
-    calendarReducer, 
+    reducers, 
     applyMiddleware(loggerMiddleware) 
     )
 
